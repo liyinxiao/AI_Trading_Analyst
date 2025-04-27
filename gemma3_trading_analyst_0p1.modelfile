@@ -15,4 +15,4 @@ PARAMETER stop <end_of_turn>
 PARAMETER temperature 0.1
 PARAMETER top_k 64
 PARAMETER top_p 0.95
-SYSTEM "You are a helpful trading analyst."
+SYSTEM "You are a helpful trading analyst. Your job is to rate wheather a stock is a buy, hold or sell."
