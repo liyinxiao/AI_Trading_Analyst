@@ -1,6 +1,9 @@
 from pydantic import BaseModel
 import pandas as pd
 import numpy as np
+from ta.trend import ADXIndicator
+from ta.momentum import RSIIndicator
+from ta.volatility import BollingerBands
 
 
 class Price(BaseModel):
@@ -17,140 +20,95 @@ class PriceResponse(BaseModel):
     prices: list[Price]
 
     def create_prompt(self) -> str:
-        prices_df = PriceResponse.prices_to_df(self.prices)
-        # Date
-        date = pd.to_datetime(prices_df.iloc[-1]["time"]).strftime("%Y-%m-%d")
+        def format_volume(volume):
+            if volume >= 1_000_000:
+                return f"{volume // 1_000_000}M"
+            elif volume >= 1_000:
+                return f"{volume // 1_000}K"
+            else:
+                return str(volume)
 
-        # Calculate EMAs for multiple timeframes
-        ema_8 = PriceResponse.calculate_ema(prices_df, 8)
-        ema_21 = PriceResponse.calculate_ema(prices_df, 21)
-        ema_55 = PriceResponse.calculate_ema(prices_df, 55)
+        prices_df = pd.DataFrame([p.model_dump() for p in self.prices])
+        prices_df["date"] = pd.to_datetime(prices_df["time"])
+        prices_df.set_index("date", inplace=True)
+        numeric_cols = ["open", "close", "high", "low", "volume"]
+        for col in numeric_cols:
+            prices_df[col] = pd.to_numeric(prices_df[col], errors="coerce")
+        prices_df.sort_index(inplace=True)
+        print(prices_df)
 
-        # Calculate ADX for trend strength
-        adx = PriceResponse.calculate_adx(prices_df, 14)
+        # Compute Moving Averages
+        ma_20 = prices_df["close"].rolling(window=20).mean()
+        ma_50 = prices_df["close"].rolling(window=50).mean()
+
+        # Z-score for mean reversion (50-day mean)
+        std_50 = prices_df["close"].rolling(window=50).std()
+        z_score = (prices_df["close"] - ma_50) / std_50
 
         # Calculate Bollinger Bands
-        bb_upper, bb_lower = PriceResponse.calculate_bollinger_bands(prices_df)
+        bb = BollingerBands(close=prices_df["close"], window=20, window_dev=2)
+        bb_upper = bb.bollinger_hband()
+        bb_lower = bb.bollinger_lband()
+        price_vs_bb = (prices_df["close"].iloc[-1] - bb_lower.iloc[-1]) / (
+            bb_upper.iloc[-1] - bb_lower.iloc[-1]
+        )
 
-        # Calculate RSI with multiple timeframes
-        rsi_14 = PriceResponse.calculate_rsi(prices_df, 14)
-        rsi_28 = PriceResponse.calculate_rsi(prices_df, 28)
+        # Calculate ADX for trend strength
+        adx = ADXIndicator(
+            high=prices_df["high"],
+            low=prices_df["low"],
+            close=prices_df["close"],
+            window=14,
+        )
+
+        # Calculate RSI
+        rsi_14 = RSIIndicator(close=prices_df["close"], window=14)
+        rsi_28 = RSIIndicator(close=prices_df["close"], window=28)
+
+        # Price momentum
+        returns = prices_df["close"].pct_change()
+        mom_1m = returns.rolling(21).sum()
+        mom_3m = returns.sum()
+
+        # Volume momentum
+        volume_ma = prices_df["volume"].rolling(21).mean()
+        volume_momentum = prices_df["volume"] / volume_ma
 
         prompt = f"""
-### Key Stock Statistics
-Date: {prices_df.iloc[-1]['ds']}
-Ticker: {self.ticker}
+### Key Statistics
+Date: {pd.to_datetime(prices_df.iloc[-1]["time"]).strftime("%Y-%m-%d")}
 Previous Close: {prices_df.iloc[-2]['close']}
 Open: {prices_df.iloc[-1]['open']}
 Close: {prices_df.iloc[-1]['close']}
 High: {prices_df.iloc[-1]['high']}
 Low: {prices_df.iloc[-1]['low']}
-Volume: {prices_df.iloc[-1]['volume']}
+Volume: {format_volume(prices_df.iloc[-1]['volume'])}
+Average Volume (3M): {format_volume(prices_df["volume"].mean())}
 
 ### Technical Indicators
-8-day EMA: {round(ema_8.iloc[-1], 2)}
-21-day EMA: {round(ema_21.iloc[-1], 2)}
-55-day EMA: {round(ema_55.iloc[-1], 2)}
-ADX: {round(adx["adx"].iloc[-1], 2)} 
-+DI: {round(adx["+di"].iloc[-1], 2)}
--DI: {round(adx["-di"].iloc[-1], 2)}
-Bollinger Bands: upper band = {round(bb_upper.iloc[-1], 2)}, lower band = {round(bb_lower.iloc[-1], 2)}
-14-day RSI: {round(rsi_14.iloc[-1], 2)}
-28-day RSI: {round(rsi_28.iloc[-1], 2)}
+Trend Indicators
+- 20-day Moving Average: {round(ma_20.iloc[-1], 2)}
+- 50-day Moving Average: {round(ma_50.iloc[-1], 2)}
+- ADX (Average Directional Index): {round(adx.adx().iloc[-1], 2)} 
+- +DI: {round(adx.adx_pos().iloc[-1], 2)}
+- -DI: {round(adx.adx_neg().iloc[-1], 2)}
+
+Mean Reversion Indicators
+- Bollinger Bands (20-day)
+  - Upper band = {round(bb_upper.iloc[-1], 2)}
+  - Lower band = {round(bb_lower.iloc[-1], 2)}
+  - Current price position within bands (0 = lower, 1 = upper): {round(price_vs_bb, 2)}
+- Z-score (50-day): {round(z_score.iloc[-1], 2)}
+
+Momentum Indicators
+- 14-day RSI: {round(rsi_14.rsi().iloc[-1], 2)}
+- 28-day RSI: {round(rsi_28.rsi().iloc[-1], 2)}
+- 1-month return: {round(mom_1m.iloc[-1] * 100, 2)}%
+- 3-month return: {round(mom_3m * 100, 2)}%
+- Volume Momentum (current vs 21-day average): {round(volume_momentum.iloc[-1], 2)}
 
 """
         return prompt
-
-    @staticmethod
-    def prices_to_df(prices: list[Price]) -> pd.DataFrame:
-        """Convert prices to a DataFrame."""
-        df = pd.DataFrame([p.model_dump() for p in prices])
-        df["Date"] = pd.to_datetime(df["time"])
-        df["ds"] = [x.strftime("%Y-%m-%d") for x in df["Date"]]
-        df.set_index("Date", inplace=True)
-        numeric_cols = ["open", "close", "high", "low", "volume"]
-        for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-        df.sort_index(inplace=True)
-        return df
-
-    @staticmethod
-    def calculate_ema(df: pd.DataFrame, window: int) -> pd.Series:
-        """
-        Calculate Exponential Moving Average
-
-        Args:
-            df: DataFrame with price data
-            window: EMA period
-
-        Returns:
-            pd.Series: EMA values
-        """
-        return df["close"].ewm(span=window, adjust=False).mean()
-
-    @staticmethod
-    def calculate_rsi(prices_df: pd.DataFrame, period: int = 14) -> pd.Series:
-        delta = prices_df["close"].diff()
-        gain = (delta.where(delta > 0, 0)).fillna(0)
-        loss = (-delta.where(delta < 0, 0)).fillna(0)
-        avg_gain = gain.rolling(window=period).mean()
-        avg_loss = loss.rolling(window=period).mean()
-        rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
-        return rsi
-
-    @staticmethod
-    def calculate_bollinger_bands(
-        prices_df: pd.DataFrame, window: int = 20
-    ) -> tuple[pd.Series, pd.Series]:
-        sma = prices_df["close"].rolling(window).mean()
-        std_dev = prices_df["close"].rolling(window).std()
-        upper_band = sma + (std_dev * 2)
-        lower_band = sma - (std_dev * 2)
-        return upper_band, lower_band
-
-    @staticmethod
-    def calculate_adx(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
-        """
-        Calculate Average Directional Index (ADX)
-
-        Args:
-            df: DataFrame with OHLC data
-            period: Period for calculations
-
-        Returns:
-            DataFrame with ADX values
-        """
-        # Calculate True Range
-        df["high_low"] = df["high"] - df["low"]
-        df["high_close"] = abs(df["high"] - df["close"].shift())
-        df["low_close"] = abs(df["low"] - df["close"].shift())
-        df["tr"] = df[["high_low", "high_close", "low_close"]].max(axis=1)
-
-        # Calculate Directional Movement
-        df["up_move"] = df["high"] - df["high"].shift()
-        df["down_move"] = df["low"].shift() - df["low"]
-
-        df["plus_dm"] = np.where(
-            (df["up_move"] > df["down_move"]) & (df["up_move"] > 0), df["up_move"], 0
-        )
-        df["minus_dm"] = np.where(
-            (df["down_move"] > df["up_move"]) & (df["down_move"] > 0),
-            df["down_move"],
-            0,
-        )
-
-        # Calculate ADX
-        df["+di"] = 100 * (
-            df["plus_dm"].ewm(span=period).mean() / df["tr"].ewm(span=period).mean()
-        )
-        df["-di"] = 100 * (
-            df["minus_dm"].ewm(span=period).mean() / df["tr"].ewm(span=period).mean()
-        )
-        df["dx"] = 100 * abs(df["+di"] - df["-di"]) / (df["+di"] + df["-di"])
-        df["adx"] = df["dx"].ewm(span=period).mean()
-
-        return df[["adx", "+di", "-di"]]
 
 
 class InsiderTrade(BaseModel):

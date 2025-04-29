@@ -1,9 +1,9 @@
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 import requests
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import os
-from data.models import InsiderTradeResponse, Price, PriceResponse
+from data.models import InsiderTradeResponse, PriceResponse
 import argparse
 
 
@@ -52,12 +52,19 @@ def get_insider_trades(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the AI trading analyst system")
     parser.add_argument("--tickers", type=str, required=True, help="stock ticker symbol to analyze")
+    parser.add_argument("--end-date", type=str, help="End date (YYYY-MM-DD). Defaults to today")
+
     args = parser.parse_args()
     ticker =  args.tickers.strip()
-
-    start_date = (date.today() - timedelta(days=60)).strftime("%Y-%m-%d")
-    end_date = date.today().strftime("%Y-%m-%d")
-    prompt = ""
+    # Set the start and end dates
+    if args.end_date:
+        try:
+            datetime.strptime(args.end_date, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("End date must be in YYYY-MM-DD format")
+    end_date = args.end_date or datetime.now().strftime("%Y-%m-%d")
+    start_date = (datetime.strptime(end_date, "%Y-%m-%d")  - timedelta(days=90)).strftime("%Y-%m-%d")
+    prompt = f"{ticker} Stock Analysis"
 
     # Get the historical price data
     prices = get_prices(
@@ -76,7 +83,8 @@ if __name__ == "__main__":
     prompt += insider_trades.create_prompt()
 
     prompt += f"""
-### Instructions: Review `Key Stock Statistics`, `Technical Indicators` and `Insider Trades`, and provide a rating to stock ticker={ticker}. \
+
+### Instructions: Review `Key Statistics`, `Technical Indicators` and `Insider Trades`, and provide a rating to stock ticker={ticker}. \
 The rating should be strong buy, buy, hold, sell, or strong sell. 
 Your answer should only contain a JSON object with the following two keywords:
 'rating': Strong buy, buy, hold, sell, or strong sell
