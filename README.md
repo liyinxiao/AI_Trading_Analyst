@@ -12,80 +12,41 @@ Installation
 pin install pandas
 pip install langchain-ollama langchain-core
 pip install langgraph
+pip install colorama tabulate
 ```
 
 Run the code
 ```
-python3 main.py --ticker TSLA
+python3 main.py --ticker=TSLA --end-date=2025-04-28
 ```
 
-Example Prompt
+Example Output
 ```
-### Key Stock Statistics
-Date: 2025-04-25
-Ticker: TSLA
-Previous Close: 259.51
-Open: 261.69
-Close: 284.95
-High: 286.85
-Low: 259.63
-Volume: 167521263
-
-### Technical Indicators
-8-day EMA: 255.99
-21-day EMA: 254.11
-55-day EMA: 262.53
-ADX: 20.51 
-+DI: 38.02
--DI: 16.66
-Bollinger Bands: upper band = 287.48, lower band = 218.8
-14-day RSI: 63.11
-28-day RSI: 56.76
-
-### Insider Trades from Past 60 days
-Insider Trade #1 of TSLA
-- Issuer: Tesla Inc
-- Name: Vaibhav Taneja
-- Title: Chief Financial Officer
-- Board Director: False
-- Transaction Date: 2025-04-07
-- Shares Traded: -4000.0
-- Price per Share: $18.22
-- Transaction Value: $72880.0
-- Shares Before: 741920.0
-- Shares After: 737920.0
-- Security Title: Non-Qualified Stock Option right to buy
-- Filing Date: 2025-04-09
-Insider Trade #2 of TSLA
-- Issuer: Tesla Inc
-- Name: Vaibhav Taneja
-- Title: Chief Financial Officer
-- Board Director: False
-- Transaction Date: 2025-04-07
-- Shares Traded: -4000.0
-- Price per Share: $250.0
-- Transaction Value: $1000000.0
-- Shares Before: 30949.0
-- Shares After: 26949.0
-- Security Title: Common Stock
-- Filing Date: 2025-04-09
-Insider Trade #3 of TSLA
-- Issuer: Tesla Inc
-- Name: Vaibhav Taneja
-- Title: Chief Financial Officer
-- Board Director: False
-- Transaction Date: 2025-04-07
-- Shares Traded: 4000.0
-- Price per Share: $18.22
-- Transaction Value: $72880.0
-- Shares Before: 26949.0
-- Shares After: 30949.0
-- Security Title: Common Stock
-- Filing Date: 2025-04-09
-
-### Instructions: Review `Key Stock Statistics`, `Technical Indicators` and `Insider Trades`, and provide a rating to stock ticker=TSLA. The rating should be strong buy, buy, hold, sell, or strong sell. 
-Your answer should only contain a JSON object with the following two keywords:
-'rating': Strong buy, buy, hold, sell, or strong sell
-'reasoning': A short description of your reasoning for the rating
-Please DO NOT output anything outside the JSON.
++----------------------------+------+------------------------------------------------------------------------------------------------------+
+| llama3.1                   | buy  | TSLA has shown a significant increase in recent trading days with a high volume. The stock is also   |
+|                            |      | showing a positive trend with its ADX indicating a moderate price movement and +DI being higher than |
+|                            |      | -DI. However, the RSI (14-day) is at 58.48 which suggests that the stock might be due for a          |
+|                            |      | correction. Additionally, the company's financials show a high P/E ratio of 144.50 but a low         |
+|                            |      | enterprise value to EBITDA ratio of 65.58. The insider trades suggest some sell activity by          |
+|                            |      | directors and officers, but this is partially offset by the CFO's buy activity.                      |
++----------------------------+------+------------------------------------------------------------------------------------------------------+
+| gemma3_trading_analyst_0p1 | sell | TSLA presents a mixed picture. While the company demonstrates strong liquidity and a healthy cash    |
+|                            |      | ratio, growth metrics are concerning with negative revenue and EPS growth. High multiples (P/E,      |
+|                            |      | EV/EBITDA) suggest a premium valuation that isn't fully supported by current performance. The recent |
+|                            |      | insider selling, particularly by board members like James Murdoch, raises red flags, outweighing the |
+|                            |      | positive aspects. The ADX is low, indicating a lack of strong trend. Although free cash flow growth  |
+|                            |      | is positive, the overall negative growth trends and significant insider selling warrant a cautious   |
+|                            |      | approach.                                                                                            |
++----------------------------+------+------------------------------------------------------------------------------------------------------+
+| mistral-nemo:12b           | buy  | TSLA's high P/E ratio (144.50), negative EPS growth (-10.3%), and significant insider selling by     |
+|                            |      | James R Murdoch (total -432561 shares) indicate a cautious approach. However, the stock is trading   |
+|                            |      | below its 50-day MA and has strong support at $240. Its recent dip might present an attractive       |
+|                            |      | buying opportunity for those with a longer-term perspective.                                         |
++----------------------------+------+------------------------------------------------------------------------------------------------------+
+| qwen3:14b                  | hold | TSLA shows mixed signals: technical indicators suggest overbought conditions and potential pullback, |
+|                            |      | while financial metrics highlight high valuation (P/E=65) and weak revenue growth (5%). Insider      |
+|                            |      | selling, particularly by James Murdoch, raises concerns. However, strong ROE (18%) and low debt-to-  |
+|                            |      | equity (0.4) provide some support. The combination of overvaluation, lackluster growth, and insider  |
+|                            |      | activity leans toward caution.                                                                       |
++----------------------------+------+------------------------------------------------------------------------------------------------------+
 ```

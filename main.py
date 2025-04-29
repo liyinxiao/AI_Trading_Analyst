@@ -1,10 +1,15 @@
+import re
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 import requests
-from datetime import date, timedelta, datetime
+from datetime import timedelta, datetime
 import os
-from data.models import InsiderTradeResponse, PriceResponse
+from data.models import FinancialMetricsResponse, InsiderTradeResponse, PriceResponse
 import argparse
+import json
+from colorama import Fore, Style
+from tabulate import tabulate
+import textwrap
 
 
 def get_prices(ticker: str, start_date: str, end_date: str) -> PriceResponse:
@@ -25,6 +30,29 @@ def get_prices(ticker: str, start_date: str, end_date: str) -> PriceResponse:
 
     # Parse response with Pydantic model
     return PriceResponse(**response.json())
+
+
+def get_financial_metrics(
+    ticker: str, start_date: str, end_date: str
+) -> FinancialMetricsResponse:
+    """
+    Fetch financial metrics data from API.
+    """
+    # If not in cache or no data in range, fetch from API
+    headers = {}
+    if api_key := os.environ.get("FINANCIAL_DATASETS_API_KEY"):
+        headers["X-API-KEY"] = api_key
+
+    url = f"https://api.financialdatasets.ai/financial-metrics/snapshot?ticker={ticker}"
+
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        raise Exception(
+            f"Error fetching data: {ticker} - {response.status_code} - {response.text}"
+        )
+
+    # Parse response with Pydantic model
+    return FinancialMetricsResponse(**response.json())
 
 
 def get_insider_trades(
@@ -51,11 +79,18 @@ def get_insider_trades(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the AI trading analyst system")
-    parser.add_argument("--tickers", type=str, required=True, help="stock ticker symbol to analyze")
-    parser.add_argument("--end-date", type=str, help="End date (YYYY-MM-DD). Defaults to today")
+    parser.add_argument(
+        "--tickers",
+        type=str,
+        required=True,
+        help="stock ticker symbol to analyze. Without an API key, only the following are available: AAPL, BRK.B, GOOGL, MSFT, NVDA, TSLA",
+    )
+    parser.add_argument(
+        "--end-date", type=str, help="End date (YYYY-MM-DD). Defaults to today"
+    )
 
     args = parser.parse_args()
-    ticker =  args.tickers.strip()
+    ticker = args.tickers.strip()
     # Set the start and end dates
     if args.end_date:
         try:
@@ -63,10 +98,12 @@ if __name__ == "__main__":
         except ValueError:
             raise ValueError("End date must be in YYYY-MM-DD format")
     end_date = args.end_date or datetime.now().strftime("%Y-%m-%d")
-    start_date = (datetime.strptime(end_date, "%Y-%m-%d")  - timedelta(days=90)).strftime("%Y-%m-%d")
+    start_date = (
+        datetime.strptime(end_date, "%Y-%m-%d") - timedelta(days=90)
+    ).strftime("%Y-%m-%d")
     prompt = f"{ticker} Stock Analysis"
 
-    # Get the historical price data
+    # Get price signals
     prices = get_prices(
         ticker=ticker,
         start_date=start_date,
@@ -74,7 +111,15 @@ if __name__ == "__main__":
     )
     prompt += prices.create_prompt()
 
-    # Get insider trades
+    # Get financial metrics signals
+    prices = get_financial_metrics(
+        ticker=ticker,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    prompt += prices.create_prompt()
+
+    # Get insider trade signals
     insider_trades = get_insider_trades(
         ticker=ticker,
         start_date=start_date,
@@ -83,19 +128,25 @@ if __name__ == "__main__":
     prompt += insider_trades.create_prompt()
 
     prompt += f"""
+### Instructions: Review `Key Statistics`, `Technical Indicators`, `Financial Metrics` and `Insider Trades`, \
+and provide a rating to stock ticker={ticker}. The rating should be strong buy, buy, hold, sell, or strong sell. 
 
-### Instructions: Review `Key Statistics`, `Technical Indicators` and `Insider Trades`, and provide a rating to stock ticker={ticker}. \
-The rating should be strong buy, buy, hold, sell, or strong sell. 
 Your answer should only contain a JSON object with the following two keywords:
-'rating': Strong buy, buy, hold, sell, or strong sell
 'reasoning': A short description of your reasoning for the rating
+'rating': Strong buy, buy, hold, sell, or strong sell
 Please DO NOT output anything outside the JSON.
 """
-    print(prompt)
+    print("prompt: ", prompt)
 
     # Ollama Settings
-    model_names = ["qwen2.5:7b", "llama3.1", "gemma3", "gemma3_trading_analyst_0p1"]
+    model_names = [
+        "llama3.1",
+        "gemma3_trading_analyst_0p1",
+        "mistral-nemo:12b",
+        "qwen3:14b",
+    ]
     base_url = "http://localhost:11434"  # Default for local Ollama
+    summary = []
 
     for model_name in model_names:
         # Initialize ChatOllama
@@ -113,9 +164,35 @@ Please DO NOT output anything outside the JSON.
                 HumanMessage(content=prompt),
             ]
         )
-
         # Print the response
         print("------------------------------------------------------------")
         print("model name: ", model_name)
         print("response: ", response.content)
         print("------------------------------------------------------------")
+
+        json_str = (
+            re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL)
+            .replace("```json", "")
+            .replace("```", "")
+            .strip()
+        )
+        data = json.loads(json_str)
+        rating = data.get("rating", "Not Available")
+        rating_color = {
+            "strong buy": Fore.GREEN,
+            "buy": Fore.GREEN,
+            "hold": Fore.YELLOW,
+            "sell": Fore.RED,
+            "strong sell": Fore.RED,
+        }.get(rating, Fore.WHITE)
+        reasoning = data.get("reasoning", "Not Available")
+
+        summary.append(
+            [
+                model_name,
+                f"{rating_color}{rating}{Style.RESET_ALL}",
+                "\n".join(textwrap.wrap(reasoning, width=100)),
+            ]
+        )
+
+    print(tabulate(summary, tablefmt="grid", colalign=("left", "center", "left")))

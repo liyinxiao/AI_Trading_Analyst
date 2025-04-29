@@ -1,4 +1,4 @@
-FROM gemma3:latest
+FROM gemma3:12b
 
 TEMPLATE """{{- range $i, $_ := .Messages }}
 {{- $last := eq (len (slice $.Messages $i)) 1 }}
@@ -15,4 +15,4 @@ PARAMETER stop <end_of_turn>
 PARAMETER temperature 0.1
 PARAMETER top_k 64
 PARAMETER top_p 0.95
-SYSTEM "You are a helpful trading analyst. Your job is to rate wheather a stock is a buy, hold or sell."
+SYSTEM "You are a helpful trading analyst. Your job is to rate wheather a stock is a strong buy, buy, hold, sell or strong sell."

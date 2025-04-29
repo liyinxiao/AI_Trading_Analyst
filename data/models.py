@@ -35,7 +35,6 @@ class PriceResponse(BaseModel):
         for col in numeric_cols:
             prices_df[col] = pd.to_numeric(prices_df[col], errors="coerce")
         prices_df.sort_index(inplace=True)
-        print(prices_df)
 
         # Compute Moving Averages
         ma_20 = prices_df["close"].rolling(window=20).mean()
@@ -111,6 +110,135 @@ Momentum Indicators
         return prompt
 
 
+class FinancialMetrics(BaseModel):
+    ticker: str
+    market_cap: float | None
+    enterprise_value: float | None
+    price_to_earnings_ratio: float | None
+    price_to_book_ratio: float | None
+    price_to_sales_ratio: float | None
+    enterprise_value_to_ebitda_ratio: float | None
+    enterprise_value_to_revenue_ratio: float | None
+    free_cash_flow_yield: float | None
+    peg_ratio: float | None
+    gross_margin: float | None
+    operating_margin: float | None
+    net_margin: float | None
+    return_on_equity: float | None
+    return_on_assets: float | None
+    return_on_invested_capital: float | None
+    asset_turnover: float | None
+    inventory_turnover: float | None
+    receivables_turnover: float | None
+    days_sales_outstanding: float | None
+    operating_cycle: float | None
+    working_capital_turnover: float | None
+    current_ratio: float | None
+    quick_ratio: float | None
+    cash_ratio: float | None
+    operating_cash_flow_ratio: float | None
+    debt_to_equity: float | None
+    debt_to_assets: float | None
+    interest_coverage: float | None
+    revenue_growth: float | None
+    earnings_growth: float | None
+    book_value_growth: float | None
+    earnings_per_share_growth: float | None
+    free_cash_flow_growth: float | None
+    operating_income_growth: float | None
+    ebitda_growth: float | None
+    payout_ratio: float | None
+    earnings_per_share: float | None
+    book_value_per_share: float | None
+    free_cash_flow_per_share: float | None
+
+
+class FinancialMetricsResponse(BaseModel):
+    snapshot: FinancialMetrics
+
+    def create_prompt(self) -> str:
+        if not self.snapshot:
+            return "No financial reports available."
+
+        # Use the most recent financial metric entry
+        fm = self.snapshot
+
+        def fmt(x):
+            return "N/A" if x is None else f"{x:,.2f}"
+
+        def pct(x):
+            return "N/A" if x is None else f"{x*100:.1f}%"
+        
+        def format_large_number(n):
+            if n >= 1_000_000_000_000:
+                return f"{n / 1_000_000_000_000:.0f}T"
+            elif n >= 1_000_000_000:
+                return f"{n / 1_000_000_000:.0f}B"
+            elif n >= 1_000_000:
+                return f"{n / 1_000_000:.0f}M"
+            elif n >= 1_000:
+                return f"{n / 1_000:.0f}K"
+            else:
+                return str(n)
+
+        return f"""
+### Financial Metrics
+Market Value
+- Market Cap: ${format_large_number(fm.market_cap)}
+- Enterprise Value: ${format_large_number(fm.enterprise_value)}
+
+Multiples
+- P/E Ratio: {fmt(fm.price_to_earnings_ratio)}
+- PEG Ratio: {fmt(fm.peg_ratio)}
+- Price/Book Ratio: {fmt(fm.price_to_book_ratio)}
+- Price/Sales Ratio: {fmt(fm.price_to_sales_ratio)}
+- EV/EBITDA: {fmt(fm.enterprise_value_to_ebitda_ratio)}
+- EV/Revenue: {fmt(fm.enterprise_value_to_revenue_ratio)}
+- Free Cash Flow Yield: {pct(fm.free_cash_flow_yield)}
+
+Profitability
+- Gross Margin: {pct(fm.gross_margin)}
+- Operating Margin: {pct(fm.operating_margin)}
+- Net Margin: {pct(fm.net_margin)}
+- ROE (Return on Equity): {pct(fm.return_on_equity)}
+- ROA (Return on Assets): {pct(fm.return_on_assets)}
+- ROIC (Return on Invested Capital): {pct(fm.return_on_invested_capital)}
+
+Efficiency
+- Asset Turnover: {fmt(fm.asset_turnover)}
+- Inventory Turnover: {fmt(fm.inventory_turnover)}
+- Receivables Turnover: {fmt(fm.receivables_turnover)}
+- DSO (Days Sales Outstanding): {fmt(fm.days_sales_outstanding)}
+- Operating Cycle: {fmt(fm.operating_cycle)}
+- Working Capital Turnover: {fmt(fm.working_capital_turnover)}
+
+Liquidity
+- Current Ratio: {fmt(fm.current_ratio)}
+- Quick Ratio: {fmt(fm.quick_ratio)}
+- Cash Ratio: {fmt(fm.cash_ratio)}
+- Operating Cash Flow Ratio: {fmt(fm.operating_cash_flow_ratio)}
+
+Leverage
+- Debt/Equity: {fmt(fm.debt_to_equity)}
+- Debt/Assets: {fmt(fm.debt_to_assets)}
+- Interest Coverage: {fmt(fm.interest_coverage)}
+
+Growth
+- Revenue Growth: {pct(fm.revenue_growth)}
+- EPS Growth: {pct(fm.earnings_per_share_growth)}
+- Book Value Growth: {pct(fm.book_value_growth)}
+- Free Cash Flow Growth: {pct(fm.free_cash_flow_growth)}
+- EBITDA Growth: {pct(fm.ebitda_growth)}
+- Operating Income Growth: {pct(fm.operating_income_growth)}
+
+Per Share Metrics
+- EPS: ${fmt(fm.earnings_per_share)}
+- Book Value per Share: ${fmt(fm.book_value_per_share)}
+- Free Cash Flow per Share: ${fmt(fm.free_cash_flow_per_share)}
+
+"""
+
+
 class InsiderTrade(BaseModel):
     ticker: str
     issuer: str | None
@@ -139,9 +267,9 @@ class InsiderTradeResponse(BaseModel):
         ]
 
         if not insider_trades:
-            return "No insider trades available from past 45 days."
+            return "No insider trades available from past 90 days."
 
-        prompt_lines = ["### Insider Trades from Past 60 days"]
+        prompt_lines = ["### Insider Trades from Past 90 days"]
         i = 0
         for trade in insider_trades:
             i += 1
@@ -193,7 +321,7 @@ class InsiderTradeResponse(BaseModel):
                 f"- Filing Date: {trade.filing_date}",
             ]
             # Filter out None and join lines
-            trade_block = "\n".join(line for line in lines if line)
+            trade_block = "\n".join(line for line in lines if line) + "\n"
             prompt_lines.append(trade_block)
 
         return "\n".join(prompt_lines)
