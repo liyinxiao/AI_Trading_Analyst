@@ -44,7 +44,6 @@ def get_financial_metrics(
         headers["X-API-KEY"] = api_key
 
     url = f"https://api.financialdatasets.ai/financial-metrics/snapshot?ticker={ticker}"
-
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
         raise Exception(
@@ -90,7 +89,8 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    ticker = args.tickers.strip()
+    tickers = [ticker.strip() for ticker in args.tickers.split(",")]
+
     # Set the start and end dates
     if args.end_date:
         try:
@@ -101,98 +101,104 @@ if __name__ == "__main__":
     start_date = (
         datetime.strptime(end_date, "%Y-%m-%d") - timedelta(days=90)
     ).strftime("%Y-%m-%d")
-    prompt = f"{ticker} Stock Analysis"
 
-    # Get price signals
-    prices = get_prices(
-        ticker=ticker,
-        start_date=start_date,
-        end_date=end_date,
-    )
-    prompt += prices.create_prompt()
+    for ticker in tickers:
+        prompt = f"{ticker} Stock Analysis"
 
-    # Get financial metrics signals
-    prices = get_financial_metrics(
-        ticker=ticker,
-        start_date=start_date,
-        end_date=end_date,
-    )
-    prompt += prices.create_prompt()
+        # Get price signals
+        prices = get_prices(
+            ticker=ticker,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        prompt += prices.create_prompt()
 
-    # Get insider trade signals
-    insider_trades = get_insider_trades(
-        ticker=ticker,
-        start_date=start_date,
-        end_date=end_date,
-    )
-    prompt += insider_trades.create_prompt()
+        # Get financial metrics signals
+        # financial_metrics = get_financial_metrics(
+        #     ticker=ticker,
+        #     start_date=start_date,
+        #     end_date=end_date,
+        # )
+        # prompt += financial_metrics.create_prompt()
 
-    prompt += f"""
-### Instructions: Review `Key Statistics`, `Technical Indicators`, `Financial Metrics` and `Insider Trades`, \
-and provide a rating to stock ticker={ticker}. The rating should be strong buy, buy, hold, sell, or strong sell. 
+        # Get insider trade signals
+        insider_trades = get_insider_trades(
+            ticker=ticker,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        prompt += insider_trades.create_prompt()
+
+        prompt += f"""
+### Instructions: for stock {ticker}, review `Key Statistics`, `Technical Indicators`, and `Insider Trades`, \
+and provide a rating to predict its stock performance in the very short term (within days). The rating should be \
+either strong buy, buy, hold, sell, or strong sell. 
 
 Your answer should only contain a JSON object with the following two keywords:
-'reasoning': A short description of your reasoning for the rating
+'reasoning': A detailed description of your reasoning for the rating
 'rating': Strong buy, buy, hold, sell, or strong sell
 Please DO NOT output anything outside the JSON.
 """
-    print("prompt: ", prompt)
 
-    # Ollama Settings
-    model_names = [
-        "llama3.1",
-        "gemma3_trading_analyst_0p1",
-        "mistral-nemo:12b",
-        "qwen3:14b",
-    ]
-    base_url = "http://localhost:11434"  # Default for local Ollama
-    summary = []
+        # print("prompt: ", prompt)
 
-    for model_name in model_names:
-        # Initialize ChatOllama
-        chat = ChatOllama(
-            model=model_name,
-            base_url=base_url,
-        )
+        # Ollama Settings
+        model_names = [
+            "llama3.1",
+            "gemma3:12b",
+            "mistral-nemo:12b",
+            "qwen3:14b",
+        ]
+        base_url = "http://localhost:11434"  # Default for local Ollama
+        summary = []
 
-        # Send a message
-        response = chat.invoke(
-            [
-                SystemMessage(
-                    content="You are a helpful trading analyst. Your job is to rate wheather a stock is a strong buy, buy, hold, sell, or strong sell."
-                ),
-                HumanMessage(content=prompt),
-            ]
-        )
-        # Print the response
-        print("------------------------------------------------------------")
-        print("model name: ", model_name)
-        print("response: ", response.content)
-        print("------------------------------------------------------------")
+        for model_name in model_names:
+            # Initialize ChatOllama
+            chat = ChatOllama(
+                model=model_name,
+                base_url=base_url,
+                temperature=0.0,
+            )
 
-        json_str = (
-            re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL)
-            .replace("```json", "")
-            .replace("```", "")
-            .strip()
-        )
-        data = json.loads(json_str)
-        rating = data.get("rating", "Not Available")
-        rating_color = {
-            "strong buy": Fore.GREEN,
-            "buy": Fore.GREEN,
-            "hold": Fore.YELLOW,
-            "sell": Fore.RED,
-            "strong sell": Fore.RED,
-        }.get(rating, Fore.WHITE)
-        reasoning = data.get("reasoning", "Not Available")
+            # Send a message
+            response = chat.invoke(
+                [
+                    SystemMessage(
+                        content="You are a helpful trading analyst. Your job is to predict how a stock performs in the very short term (within days)."
+                    ),
+                    HumanMessage(content=prompt),
+                ]
+            )
+            # Print the response
+            # print("------------------------------------------------------------")
+            # print("model name: ", model_name)
+            # print("response: ", response.content)
+            # print("------------------------------------------------------------")
 
-        summary.append(
-            [
-                model_name,
-                f"{rating_color}{rating}{Style.RESET_ALL}",
-                "\n".join(textwrap.wrap(reasoning, width=100)),
-            ]
-        )
+            json_str = (
+                re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL)
+                .replace("```json", "")
+                .replace("```", "")
+                .strip()
+            )
+            data = json.loads(json_str)
+            rating = data.get("rating", "Not Available")
+            rating_color = {
+                "strong buy": Fore.GREEN,
+                "buy": Fore.GREEN,
+                "hold": Fore.YELLOW,
+                "sell": Fore.RED,
+                "strong sell": Fore.RED,
+            }.get(rating.lower(), Fore.WHITE)
+            reasoning = data.get("reasoning", "Not Available")
 
-    print(tabulate(summary, tablefmt="grid", colalign=("left", "center", "left")))
+            summary.append(
+                [
+                    model_name,
+                    f"{rating_color}{rating}{Style.RESET_ALL}",
+                    "\n".join(textwrap.wrap(reasoning, width=100)),
+                ]
+            )
+
+        print(f"{ticker} Stock Analysis")
+        print(tabulate(summary, tablefmt="grid", colalign=("left", "center", "left")))
