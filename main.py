@@ -131,16 +131,16 @@ if __name__ == "__main__":
 
         prompt += f"""
 ### Instructions: for stock {ticker}, review `Key Statistics`, `Technical Indicators`, and `Insider Trades`, \
-and provide a rating to predict its stock performance in the very short term (within days). The rating should be \
-either strong buy, buy, hold, sell, or strong sell. 
+and provide a rating to predict its stock performance within the next 5 trading days. The rating should be strong buy (+5% or better), \
+buy (+1% to +5%), hold (-1% to +1%), sell (-5% to -1%), or strong sell (-5% or worse). 
 
 Your answer should only contain a JSON object with the following two keywords:
-'reasoning': A detailed description of your reasoning for the rating
-'rating': Strong buy, buy, hold, sell, or strong sell
+'reasoning': a detailed description of your reasoning for the rating
+'rating': strong buy, buy, hold, sell, or strong sell
 Please DO NOT output anything outside the JSON.
 """
 
-        # print("prompt: ", prompt)
+        # print(prompt)
 
         # Ollama Settings
         model_names = [
@@ -148,6 +148,7 @@ Please DO NOT output anything outside the JSON.
             "gemma3:12b",
             "mistral-nemo:12b",
             "qwen3:14b",
+            "deepseek-r1:14b",
         ]
         base_url = "http://localhost:11434"  # Default for local Ollama
         summary = []
@@ -164,7 +165,7 @@ Please DO NOT output anything outside the JSON.
             response = chat.invoke(
                 [
                     SystemMessage(
-                        content="You are a helpful trading analyst. Your job is to predict how a stock performs in the very short term (within days)."
+                        content="You are a helpful trading analyst. Your job is to predict how a stock performs in the next 5 trading days."
                     ),
                     HumanMessage(content=prompt),
                 ]
@@ -181,16 +182,22 @@ Please DO NOT output anything outside the JSON.
                 .replace("```", "")
                 .strip()
             )
-            data = json.loads(json_str)
-            rating = data.get("rating", "Not Available")
+
+            try:
+                data = json.loads(json_str)
+                rating = data.get("rating", "unavailable").lower()
+                reasoning = data.get("reasoning", "unavailable")
+            except:
+                rating = "unavailable"
+                reasoning = json_str
+
             rating_color = {
                 "strong buy": Fore.GREEN,
                 "buy": Fore.GREEN,
                 "hold": Fore.YELLOW,
                 "sell": Fore.RED,
                 "strong sell": Fore.RED,
-            }.get(rating.lower(), Fore.WHITE)
-            reasoning = data.get("reasoning", "Not Available")
+            }.get(rating, Fore.WHITE)
 
             summary.append(
                 [

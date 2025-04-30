@@ -1,9 +1,12 @@
 from pydantic import BaseModel
 import pandas as pd
 import numpy as np
-from ta.trend import ADXIndicator
 from ta.momentum import RSIIndicator
-from ta.volatility import BollingerBands
+from ta.volume import OnBalanceVolumeIndicator
+from ta import add_all_ta_features
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 
 class Price(BaseModel):
@@ -21,12 +24,16 @@ class PriceResponse(BaseModel):
 
     def create_prompt(self) -> str:
         def format_volume(volume):
+            sign = 1 if volume > 0 else -1
+            volume = abs(volume)
+            if volume >= 1_000_000_000:
+                return f"{sign * volume // 1_000_000_000}B"
             if volume >= 1_000_000:
-                return f"{volume // 1_000_000}M"
+                return f"{sign * volume // 1_000_000}M"
             elif volume >= 1_000:
-                return f"{volume // 1_000}K"
+                return f"{sign * volume // 1_000}K"
             else:
-                return str(volume)
+                return str(sign * volume)
 
         prices_df = pd.DataFrame([p.model_dump() for p in self.prices])
         prices_df["date"] = pd.to_datetime(prices_df["time"])
@@ -36,44 +43,106 @@ class PriceResponse(BaseModel):
             prices_df[col] = pd.to_numeric(prices_df[col], errors="coerce")
         prices_df.sort_index(inplace=True)
 
-        # Compute Moving Averages
-        ma_20 = prices_df["close"].rolling(window=20).mean()
-        ma_50 = prices_df["close"].rolling(window=50).mean()
-
-        # Z-score for mean reversion (50-day mean)
-        std_50 = prices_df["close"].rolling(window=50).std()
-        z_score = (prices_df["close"] - ma_50) / std_50
-
-        # Calculate Bollinger Bands
-        bb = BollingerBands(close=prices_df["close"], window=20, window_dev=2)
-        bb_upper = bb.bollinger_hband()
-        bb_lower = bb.bollinger_lband()
-        price_vs_bb = (prices_df["close"].iloc[-1] - bb_lower.iloc[-1]) / (
-            bb_upper.iloc[-1] - bb_lower.iloc[-1]
+        df_ta = add_all_ta_features(
+            prices_df.copy(),
+            open="open",
+            high="high",
+            low="low",
+            close="close",
+            volume="volume",
+            fillna=True,
         )
 
-        # Calculate ADX for trend strength
-        adx = ADXIndicator(
-            high=prices_df["high"],
-            low=prices_df["low"],
-            close=prices_df["close"],
-            window=14,
-        )
+        latest = df_ta.iloc[-1]
+        close_price = latest["close"]
 
-        # Calculate RSI
-        rsi_14 = RSIIndicator(close=prices_df["close"], window=14)
+        # ========== TREND INDICATORS ==========
+        trend = f"""Trend Indicators
+- SMA (20-day): {latest['trend_sma_fast']:.2f}
+- SMA (50-day): {latest['trend_sma_slow']:.2f}
+- EMA (20-day): {latest['trend_ema_fast']:.2f}
+- EMA (50-day): {latest['trend_ema_slow']:.2f}
+- MACD: {latest['trend_macd']:.2f}, Signal: {latest['trend_macd_signal']:.2f}, Diff: {latest['trend_macd_diff']:.2f}
+- ADX (Average Directional Index): {latest['trend_adx']:.2f}
+  - +DI: {latest['trend_adx_pos']:.2f}
+  - -DI: {latest['trend_adx_neg']:.2f}
+- CCI (Commodity Channel Index): {latest['trend_cci']:.2f}
+- DPO (Detrended Price Oscillator): {latest['trend_dpo']:.2f}
+- Vortex Indicator:
+  - VI+ : {latest['trend_vortex_ind_pos']:.2f}
+  - VI- : {latest['trend_vortex_ind_neg']:.2f}
+- Ichimoku:
+  - Conversion Line (Tenkan-sen): {latest['trend_ichimoku_conv']:.2f}
+  - Base Line (Kijun-sen): {latest['trend_ichimoku_base']:.2f}
+- KST Oscillator: {latest['trend_kst']:.2f}
+  - Signal: {latest['trend_kst_sig']:.2f}
+"""
+
+        # ========== MOMENTUM INDICATORS ==========
         rsi_28 = RSIIndicator(close=prices_df["close"], window=28)
+        momentum = f"""Momentum Indicators
+- RSI (14-day): {latest['momentum_rsi']:.1f}
+- RSI (28-day): {round(rsi_28.rsi().iloc[-1], 1)}
+- Stoch RSI:
+  - Fast K: {latest['momentum_stoch_rsi_k']:.2f}
+  - Fast D: {latest['momentum_stoch_rsi_d']:.2f}
+- TSI (True Strength Index): {latest['momentum_tsi']:.1f}
+- ULTOSC (Ultimate Oscillator): {latest['momentum_uo']:.1f}
+- ROC (Rate of Change): {latest['momentum_roc']:.1f}
+- KAMA (Kaufman's Adaptive Moving Average): {latest['momentum_kama']:.1f}
+"""
 
-        # Price momentum
-        returns = prices_df["close"].pct_change()
-        mom_1m = returns.rolling(21).sum()
-        mom_3m = returns.sum()
+        # ========== VOLATILITY INDICATORS ==========
+        bb_upper = latest["volatility_bbm"] + latest["volatility_bbh"]
+        bb_lower = latest["volatility_bbm"] - latest["volatility_bbl"]
+        bb_position = (close_price - bb_lower) / (bb_upper - bb_lower)
+        bb_position = np.clip(bb_position, 0, 1)
 
-        # Volume momentum
-        volume_ma = prices_df["volume"].rolling(21).mean()
-        volume_momentum = prices_df["volume"] / volume_ma
+        volatility = f"""Volatility Indicators
+- Bollinger Bands:
+  - Middle: {latest['volatility_bbm']:.1f}
+  - Upper: {bb_upper:.1f}
+  - Lower: {bb_lower:.1f}
+  - Position within band: {bb_position:.2f}
+- ATR (Average True Range): {latest['volatility_atr']:.1f}
+- Donchian Channel:
+  - Upper Band: {latest['volatility_dch'] + latest['volatility_dcl']:.1f}
+  - Lower Band: {latest['volatility_dch'] - latest['volatility_dcl']:.1f}
+"""
 
-        prompt = f"""
+        # ========== VOLUME INDICATORS ==========
+        obv = OnBalanceVolumeIndicator(
+            close=prices_df["close"], volume=prices_df["volume"]
+        ).on_balance_volume()
+        obv_now = obv.iloc[-1]
+        obv_ma10 = obv.rolling(10).mean().iloc[-1]
+        obv_slope = np.polyfit(range(10), obv[-10:], 1)[0]
+        price_slope = np.polyfit(range(10), prices_df["close"].iloc[-10:], 1)[0]
+        obv_trend = "rising" if obv_slope > 0 else "falling"
+        price_trend = "rising" if price_slope > 0 else "falling"
+
+        volume = f"""Volume Indicators
+- MFI (Money Flow Index): {latest['volume_mfi']:.1f}
+- On-Balance Volume: {format_volume(obv_now)}
+  - 10-day Trend: OBV is {obv_trend}, while price is {price_trend}.
+  - OBV vs 10-day MA: {'above' if obv_now > obv_ma10 else 'below'}
+- Chaikin Money Flow (CMF): {latest['volume_cmf']:.2f}
+- Ease of Movement (EoM): {latest['volume_em']:.1f}
+- Force Index: {format_volume(latest['volume_fi'])}
+- Volume Price Trend (VPT): {format_volume(latest['volume_vpt'])}
+"""
+
+        # Returns
+        return_1month = (
+            (prices_df["close"].iloc[-1] / prices_df["close"].iloc[-21] - 1) * 100
+            if len(prices_df) >= 21
+            else np.nan
+        )
+        return_3month = (
+            prices_df["close"].iloc[-1] / prices_df["close"].iloc[0] - 1
+        ) * 100
+
+        return f"""
 ### Key Statistics
 Date: {pd.to_datetime(prices_df.iloc[-1]["time"]).strftime("%Y-%m-%d")}
 Previous Close: {prices_df.iloc[-2]['close']}
@@ -83,31 +152,15 @@ High: {prices_df.iloc[-1]['high']}
 Low: {prices_df.iloc[-1]['low']}
 Volume: {format_volume(prices_df.iloc[-1]['volume'])}
 Average Volume (3M): {format_volume(prices_df["volume"].mean())}
+1-month return: {return_1month:.2f}%
+3-month return: {return_3month:.2f}%
 
 ### Technical Indicators
-Trend Indicators
-- 20-day Moving Average: {round(ma_20.iloc[-1], 2)}
-- 50-day Moving Average: {round(ma_50.iloc[-1], 2)}
-- ADX (Average Directional Index): {round(adx.adx().iloc[-1], 2)} 
-- +DI: {round(adx.adx_pos().iloc[-1], 2)}
-- -DI: {round(adx.adx_neg().iloc[-1], 2)}
-
-Mean Reversion Indicators
-- Bollinger Bands (20-day)
-  - Upper band = {round(bb_upper.iloc[-1], 2)}
-  - Lower band = {round(bb_lower.iloc[-1], 2)}
-  - Current price position within bands (0 = lower, 1 = upper): {round(price_vs_bb, 2)}
-- Z-score (50-day): {round(z_score.iloc[-1], 2)}
-
-Momentum Indicators
-- 14-day RSI: {round(rsi_14.rsi().iloc[-1], 2)}
-- 28-day RSI: {round(rsi_28.rsi().iloc[-1], 2)}
-- 1-month return: {round(mom_1m.iloc[-1] * 100, 2)}%
-- 3-month return: {round(mom_3m * 100, 2)}%
-- Volume Momentum (current vs 21-day average): {round(volume_momentum.iloc[-1], 2)}
-
+{trend}
+{momentum}
+{volatility}
+{volume}
 """
-        return prompt
 
 
 class FinancialMetrics(BaseModel):
@@ -168,7 +221,7 @@ class FinancialMetricsResponse(BaseModel):
 
         def pct(x):
             return "N/A" if x is None else f"{x*100:.1f}%"
-        
+
         def format_large_number(n):
             if n >= 1_000_000_000_000:
                 return f"{n / 1_000_000_000_000:.0f}T"

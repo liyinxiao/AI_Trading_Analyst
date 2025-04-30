@@ -1,0 +1,167 @@
+TSLA Stock Analysis
+### Key Statistics
+Date: 2025-04-29
+Previous Close: 285.88
+Open: 285.5
+Close: 292.03
+High: 293.32
+Low: 279.47
+Volume: 108M
+Average Volume (3M): 117.0M
+1-month return: 12.68%
+3-month return: -24.95%
+
+### Technical Indicators
+Trend Indicators
+- SMA (20-day): 256.69
+- SMA (50-day): 259.71
+- EMA (20-day): 264.03
+- EMA (50-day): 262.28
+- MACD: 1.75, Signal: -5.03, Diff: 6.78
+- ADX (Average Directional Index): 19.77
+  - +DI: 27.99
+  - -DI: 18.82
+- CCI (Commodity Channel Index): 164.74
+- DPO (Detrended Price Oscillator): -3.59
+- Vortex Indicator:
+  - VI+ : 1.14
+  - VI- : 0.75
+- Ichimoku:
+  - Conversion Line (Tenkan-sen): 258.82
+  - Base Line (Kijun-sen): 254.56
+- KST Oscillator: -10.86
+  - Signal: -60.18
+
+Momentum Indicators
+- RSI (14-day): 60.1
+- RSI (28-day): 52.0
+- Stoch RSI:
+  - Fast K: 1.00
+  - Fast D: 0.97
+- TSI (True Strength Index): 3.1
+- ULTOSC (Ultimate Oscillator): 66.8
+- ROC (Rate of Change): 15.7
+- KAMA (Kaufman's Adaptive Moving Average): 261.9
+
+Volatility Indicators
+- Bollinger Bands:
+  - Middle: 255.9
+  - Upper: 551.5
+  - Lower: 39.7
+  - Position within band: 0.49
+- ATR (Average True Range): 20.1
+- Donchian Channel:
+  - Upper Band: 509.1
+  - Lower Band: 80.6
+
+Volume Indicators
+- MFI (Money Flow Index): 68.0
+- On-Balance Volume: -231M
+  - 10-day Trend: OBV is rising, while price is rising.
+  - OBV vs 10-day MA: above
+- Chaikin Money Flow (CMF): 0.18
+- Ease of Movement (EoM): 35.0
+- Force Index: 771.0M
+- Volume Price Trend (VPT): 1.0M
+
+### Insider Trades from Past 90 days
+Insider Trade #1 of TSLA
+- Issuer: Tesla Inc
+- Name: Vaibhav Taneja
+- Title: Chief Financial Officer
+- Board Director: False
+- Transaction Date: 2025-04-07
+- Shares Traded: -4000.0
+- Price per Share: $18.22
+- Transaction Value: $72880.0
+- Shares Before: 741920.0
+- Shares After: 737920.0
+- Security Title: Non-Qualified Stock Option right to buy
+- Filing Date: 2025-04-09
+
+Insider Trade #2 of TSLA
+- Issuer: Tesla Inc
+- Name: Vaibhav Taneja
+- Title: Chief Financial Officer
+- Board Director: False
+- Transaction Date: 2025-04-07
+- Shares Traded: -4000.0
+- Price per Share: $250.0
+- Transaction Value: $1000000.0
+- Shares Before: 30949.0
+- Shares After: 26949.0
+- Security Title: Common Stock
+- Filing Date: 2025-04-09
+
+Insider Trade #3 of TSLA
+- Issuer: Tesla Inc
+- Name: Vaibhav Taneja
+- Title: Chief Financial Officer
+- Board Director: False
+- Transaction Date: 2025-04-07
+- Shares Traded: 4000.0
+- Price per Share: $18.22
+- Transaction Value: $72880.0
+- Shares Before: 26949.0
+- Shares After: 30949.0
+- Security Title: Common Stock
+- Filing Date: 2025-04-09
+
+Insider Trade #4 of TSLA
+- Issuer: Tesla Inc
+- Name: James R Murdoch
+- Board Director: True
+- Transaction Date: 2025-03-10
+- Shares Traded: -351787.0
+- Price per Share: $24.73
+- Transaction Value: $8699693.0
+- Shares Before: 750000.0
+- Shares After: 398213.0
+- Security Title: Non-Qualified Stock Option right to buy
+- Filing Date: 2025-03-12
+
+Insider Trade #5 of TSLA
+- Issuer: Tesla Inc
+- Name: James R Murdoch
+- Board Director: True
+- Transaction Date: 2025-03-10
+- Shares Traded: -180000.0
+- Price per Share: $23.85
+- Transaction Value: $4293000.0
+- Shares Before: 180000.0
+- Shares After: 0.0
+- Security Title: Non-Qualified Stock Option right to buy
+- Filing Date: 2025-03-12
+
+Insider Trade #6 of TSLA
+- Issuer: Tesla Inc
+- Name: James R Murdoch
+- Board Director: True
+- Transaction Date: 2025-03-10
+- Shares Traded: -54776.0
+- Price per Share: $240.788
+- Transaction Value: $13189403.0
+- Shares Before: 531787.0
+- Shares After: 477011.0
+- Security Title: Common Stock
+- Filing Date: 2025-03-12
+
+Insider Trade #7 of TSLA
+- Issuer: Tesla Inc
+- Name: James R Murdoch
+- Board Director: True
+- Transaction Date: 2025-03-10
+- Shares Traded: 351787.0
+- Price per Share: $24.73
+- Transaction Value: $8699693.0
+- Shares Before: 180000.0
+- Shares After: 531787.0
+- Security Title: Common Stock
+- Filing Date: 2025-03-12
+
+### Instructions: for stock TSLA, review `Key Statistics`, `Technical Indicators`, and `Insider Trades`, and provide a rating to predict its stock performance within the next 5 trading days. The rating should be strong buy (+5% or better), buy (+1% to +5%), hold (-1% to +1%), sell (-5% to -1%), or strong sell (-5% or worse). 
+
+Your answer should only contain a JSON object with the following two keywords:
+'reasoning': a detailed description of your reasoning for the rating
+'rating': strong buy, buy, hold, sell, or strong sell
+Please DO NOT output anything outside the JSON.
