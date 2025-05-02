@@ -131,11 +131,11 @@ if __name__ == "__main__":
 
         prompt += f"""
 ### Instructions: for stock {ticker}, review `Key Statistics`, `Technical Indicators`, and `Insider Trades`, \
-and provide a rating to predict its stock performance within the next 5 trading days. The rating should be strong buy (+5% or better), \
-buy (+1% to +5%), hold (-1% to +1%), sell (-5% to -1%), or strong sell (-5% or worse). 
+and provide a rating to predict its stock performance within the next 5 trading days. The rating should be strong buy \
+(+5% or better), buy (+1% to +5%), hold (-1% to +1%), sell (-5% to -1%), or strong sell (-5% or worse). 
 
 Your answer should only contain a JSON object with the following two keywords:
-'reasoning': a detailed description of your reasoning for the rating
+'reasoning': a detailed description of your thought process for the rating
 'rating': strong buy, buy, hold, sell, or strong sell
 Please DO NOT output anything outside the JSON.
 """
