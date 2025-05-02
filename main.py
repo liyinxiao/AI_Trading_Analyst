@@ -158,7 +158,7 @@ Please DO NOT output anything outside the JSON.
             chat = ChatOllama(
                 model=model_name,
                 base_url=base_url,
-                temperature=0.0,
+                temperature=0.6,
             )
 
             # Send a message
