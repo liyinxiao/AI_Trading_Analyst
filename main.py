@@ -122,16 +122,16 @@ if __name__ == "__main__":
         # prompt += financial_metrics.create_prompt()
 
         # Get insider trade signals
-        insider_trades = get_insider_trades(
-            ticker=ticker,
-            start_date=start_date,
-            end_date=end_date,
-        )
-        prompt += insider_trades.create_prompt()
+        # insider_trades = get_insider_trades(
+        #     ticker=ticker,
+        #     start_date=start_date,
+        #     end_date=end_date,
+        # )
+        # prompt += insider_trades.create_prompt()
 
         prompt += f"""
-### Instructions: for stock {ticker}, review `Key Statistics`, `Technical Indicators`, and `Insider Trades`, \
-and provide a rating to predict its stock performance within the next 5 trading days. The rating should be strong buy \
+### Instructions: for stock {ticker}, review `Key Statistics` and `Technical Indicators`, and provide a \
+rating to predict its stock performance within the next 5 trading days. The rating should be strong buy \
 (+5% or better), buy (+1% to +5%), hold (-1% to +1%), sell (-5% to -1%), or strong sell (-5% or worse). 
 
 Your answer should only contain a JSON object with the following two keywords:
